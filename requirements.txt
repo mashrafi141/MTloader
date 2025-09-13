@@ -1,4 +1,5 @@
 fastapi
 uvicorn
-yt-dlp
+yt-dlp>=2025.8.10
 python-multipart
+
