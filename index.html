@@ -6,22 +6,22 @@
 <title>MTLOADER - Video Downloader</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;}
-body{background:linear-gradient(135deg,#1e1e2f,#2c2c54);color:#fff;display:flex;flex-direction:column;min-height:100vh;}
-nav{background:#111;padding:15px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:1000;}
-nav .logo{font-size:22px;font-weight:600;color:#ff4757;letter-spacing:1px;}
-.container{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:30px;}
-.container h1{font-size:32px;margin-bottom:15px;color:#ff6b81;}
-.container p{margin-bottom:25px;font-size:16px;color:#ddd;}
-.download-box{background:rgba(255,255,255,0.1);padding:25px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.4);width:100%;max-width:500px;}
-.download-box input, .download-box select{width:100%;padding:12px;border-radius:8px;border:none;outline:none;font-size:16px;margin-bottom:15px;}
-.download-box button{width:100%;padding:12px;border:none;border-radius:8px;background:#ff4757;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:0.3s;}
-.download-box button:hover{background:#e84118;}
-#status{margin-top:10px;font-weight:600;}
-.progress-container{width:100%;background:rgba(255,255,255,0.2);height:20px;border-radius:10px;margin-top:10px;}
-.progress-bar{height:100%;width:0%;background:#ff4757;border-radius:10px;transition:width 0.3s;}
-footer{background:#111;text-align:center;padding:15px 10px;margin-top:auto;font-size:14px;color:#aaa;}
-footer span{color:#ff4757;font-weight:600;}
+* { margin:0; padding:0; box-sizing:border-box; font-family:'Poppins',sans-serif; }
+body { background: linear-gradient(135deg,#1e1e2f,#2c2c54); color:#fff; display:flex; flex-direction:column; min-height:100vh; }
+nav { background:#111; padding:15px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:1000; }
+nav .logo { font-size:22px; font-weight:600; color:#ff4757; letter-spacing:1px; }
+.container { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:30px; }
+.container h1 { font-size:32px; margin-bottom:15px; color:#ff6b81; }
+.container p { margin-bottom:25px; font-size:16px; color:#ddd; }
+.download-box { background: rgba(255,255,255,0.1); padding:25px; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.4); width:100%; max-width:500px; }
+.download-box input, .download-box select { width:100%; padding:12px; border-radius:8px; border:none; outline:none; font-size:16px; margin-bottom:15px; }
+.download-box button { width:100%; padding:12px; border:none; border-radius:8px; background:#ff4757; color:#fff; font-size:16px; font-weight:600; cursor:pointer; transition:0.3s; }
+.download-box button:hover { background:#e84118; }
+#status { margin-top:10px; font-weight:600; }
+.progress-container { width: 100%; background: rgba(255,255,255,0.2); height: 20px; border-radius: 10px; margin-top:10px; overflow:hidden; }
+.progress-bar { height: 100%; width: 0%; background: #ff4757; border-radius: 10px; transition: width 0.2s; }
+footer { background:#111; text-align:center; padding:15px 10px; margin-top:auto; font-size:14px; color:#aaa; }
+footer span { color:#ff4757; font-weight:600; }
 </style>
 </head>
 <body>
@@ -32,8 +32,9 @@ footer span{color:#ff4757;font-weight:600;}
 <div class="download-box">
 <input type="text" id="videoUrl" placeholder="Enter video URL..." required>
 <select id="platform">
+<option value="instagram">Instagram</option>
 <option value="twitter">X/Twitter</option>
-<option value="facebook">Facebook/Instagram</option>
+<option value="facebook">Facebook</option>
 </select>
 <button id="downloadBtn">Download</button>
 <div class="progress-container"><div id="progress-bar" class="progress-bar"></div></div>
@@ -41,57 +42,55 @@ footer span{color:#ff4757;font-weight:600;}
 </div>
 </div>
 <footer>FROM <span>NOOB</span> | All Rights Reserved © 2025</footer>
+
 <script>
 const downloadBtn = document.getElementById("downloadBtn");
 const statusDiv = document.getElementById("status");
 const progressBar = document.getElementById("progress-bar");
 
-downloadBtn.addEventListener("click", async ()=>{
-    const url=document.getElementById("videoUrl").value.trim();
-    const platform=document.getElementById("platform").value;
-    const user_id=Date.now();
+downloadBtn.addEventListener("click", async () => {
+    const url = document.getElementById("videoUrl").value.trim();
+    const platform = document.getElementById("platform").value;
+    const user_id = Date.now();
 
-    if(!url){statusDiv.textContent="❌ Please enter a video URL"; return;}
+    if (!url) { statusDiv.textContent = "❌ Please enter a video URL"; return; }
 
-    statusDiv.textContent="⏳ Download starting...";
-    progressBar.style.width="0%";
+    statusDiv.textContent = "⏳ Download starting...";
+    progressBar.style.width = "0%";
 
-    const formData=new FormData();
-    formData.append("url",url);
-    formData.append("platform",platform);
-    formData.append("user_id",user_id);
+    const formData = new FormData();
+    formData.append("url", url);
+    formData.append("platform", platform);
+    formData.append("user_id", user_id);
 
-    try{
-        const resp=await fetch("/download/",{method:"POST",body:formData});
-        const data=await resp.json();
+    try {
+        const resp = await fetch("/download/", { method: "POST", body: formData });
+        const data = await resp.json();
 
-        if(data.message){statusDiv.textContent=data.message; return;}
+        if (data.message) {
+            statusDiv.textContent = data.message;
+            return;
+        }
 
-        let interval=setInterval(async ()=>{
-            const progRes=await fetch(`/progress/${user_id}`);
-            const progData=await progRes.json();
+        let interval = setInterval(async () => {
+            const progRes = await fetch(`/progress/${user_id}`);
+            const progData = await progRes.json();
+            progressBar.style.width = progData.percent + "%";
+            statusDiv.textContent = `⏳ Downloading: ${progData.percent}%`;
 
-            if(progData.error){
+            if (progData.percent >= 100) {
                 clearInterval(interval);
-                statusDiv.textContent=`❌ ${progData.error}`;
-                progressBar.style.width="0%";
-                return;
+                statusDiv.textContent = "✅ Download ready!";
+                window.location.href = data.file_url;
             }
+        }, 500);
 
-            progressBar.style.width=progData.percent+"%";
-            statusDiv.textContent=`⏳ Downloading: ${progData.percent}%`;
-
-            if(progData.percent>=100){
-                clearInterval(interval);
-                statusDiv.textContent="✅ Download ready!";
-                window.location.href=data.file_url;
-            }
-        },500);
-
-    }catch(err){
-        statusDiv.textContent="❌ Error: "+err;
+    } catch (err) {
+        statusDiv.textContent = "❌ Error: " + err;
     }
 });
 </script>
 </body>
 </html>
+
+
