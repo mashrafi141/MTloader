@@ -4,10 +4,10 @@ from starlette.background import BackgroundTask
 import asyncio
 import os
 import yt_dlp
-import shutil
 from datetime import datetime, timedelta
 import uvicorn
 import re
+import shutil
 
 app = FastAPI()
 
@@ -17,11 +17,12 @@ TWITTER_COOKIES = "twitter_cookies.txt"
 FACEBOOK_COOKIES = "facebook_cookies.txt"
 
 # ===== FFMPEG CHECK =====
-FFMPEG_PATH = os.path.join(os.getcwd(), "bin", "ffmpeg")
-if os.path.exists(FFMPEG_PATH):
+FFMPEG_PATH = shutil.which("ffmpeg")  # Check system path
+FFMPEG_EXISTS = FFMPEG_PATH is not None
+if FFMPEG_EXISTS:
     print("✅ ffmpeg detected")
 else:
-    print("⚠️ ffmpeg not found, using single format")
+    print("⚠️ ffmpeg not found, using single file mode")
 
 # ===== STATE =====
 download_queue = asyncio.Queue()
@@ -69,16 +70,15 @@ async def download_worker():
                 FILE_PATHS[user_id] = ydl.prepare_filename(info)
                 return info
 
+        # Try download: first without cookies, then with cookies if fail
         try:
-           await asyncio.to_thread(download_video, False)
+            await asyncio.to_thread(download_video, False)
         except Exception as e1:
             try:
-               await asyncio.to_thread(download_video, True)
+                await asyncio.to_thread(download_video, True)
             except Exception as e2:
-                 # Set generic frontend error message
-                 ERRORS[user_id] = "Wrong platform or video not found."
-                 PROGRESS[user_id] = 0
-
+                ERRORS[user_id] = "Wrong platform or video not found."
+                PROGRESS[user_id] = 0
 
         download_queue.task_done()
 
@@ -115,7 +115,7 @@ async def download_endpoint(url: str = Form(...), platform: str = Form(...), use
     waited = 0
     while waited < timeout:
         if ERRORS.get(user_id):
-            return JSONResponse({"message": f"❌ {ERRORS[user_id]}"})
+            return JSONResponse({"message": f"❌ {ERRORS[user_id]}"} )
         file_path = FILE_PATHS.get(user_id)
         if file_path and os.path.exists(file_path):
             # Update usage
@@ -163,4 +163,3 @@ async def delete_file_after_send(path):
 # ===== RUN =====
 if __name__=="__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
