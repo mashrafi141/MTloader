@@ -17,11 +17,11 @@ TWITTER_COOKIES = "twitter_cookies.txt"
 FACEBOOK_COOKIES = "facebook_cookies.txt"
 
 # ===== FFMPEG CHECK =====
-FFMPEG_EXISTS = shutil.which("ffmpeg") is not None
-if FFMPEG_EXISTS:
-    print("✅ ffmpeg detected. High-quality merge enabled.")
+FFMPEG_PATH = os.path.join(os.getcwd(), "bin", "ffmpeg")
+if os.path.exists(FFMPEG_PATH):
+    print("✅ ffmpeg detected")
 else:
-    print("⚠️ ffmpeg not detected. Using single format.")
+    print("⚠️ ffmpeg not found, using single format")
 
 # ===== STATE =====
 download_queue = asyncio.Queue()
@@ -163,3 +163,4 @@ async def delete_file_after_send(path):
 # ===== RUN =====
 if __name__=="__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
