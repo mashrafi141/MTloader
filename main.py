@@ -1,13 +1,15 @@
+import re
+import os
+import asyncio
+import shutil
+from urllib.parse import urlparse, urlunparse
+
+import yt_dlp
 from fastapi import FastAPI, Form
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask
-import asyncio
-import os
-import yt_dlp
 from datetime import datetime, timedelta
 import uvicorn
-import re
-import shutil
 
 app = FastAPI()
 
@@ -15,10 +17,10 @@ app = FastAPI()
 INSTAGRAM_COOKIES = "insta_cookies.txt"
 TWITTER_COOKIES   = "twitter_cookies.txt"
 FACEBOOK_COOKIES  = "facebook_cookies.txt"
-YOUTUBE_COOKIES   = "youtube_cookies.txt"   # ✅ NEW
+YOUTUBE_COOKIES   = "youtube_cookies.txt"
 
 # ===== FFMPEG CHECK =====
-FFMPEG_PATH = shutil.which("ffmpeg")  # Check system path
+FFMPEG_PATH = shutil.which("ffmpeg")
 FFMPEG_EXISTS = FFMPEG_PATH is not None
 if FFMPEG_EXISTS:
     print("✅ ffmpeg detected")
@@ -27,10 +29,16 @@ else:
 
 # ===== STATE =====
 download_queue = asyncio.Queue()
-PROGRESS = {}      # user_id -> percent
-FILE_PATHS = {}    # user_id -> file path
-ERRORS = {}        # user_id -> error message
+PROGRESS = {}
+FILE_PATHS = {}
+ERRORS = {}
 insta_usage = {}
+
+# ===== UTILITY: Clean YouTube URL =====
+def clean_youtube_url(url: str) -> str:
+    parsed = urlparse(url)
+    # keep only scheme + netloc + path (strip query/params)
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
 
 # ===== DOWNLOAD WORKER =====
 async def download_worker():
@@ -51,7 +59,12 @@ async def download_worker():
                 PROGRESS[user_id] = 100
 
         def download_video(use_cookies=False, audio_only=False):
-            # ✅ if audio_only = True -> mp3 extract
+            nonlocal url
+            # Clean YouTube URL
+            if platform == "youtube":
+                url = clean_youtube_url(url)
+
+            # ✅ Audio only
             if audio_only and platform == "youtube":
                 opts = {
                     'format': 'bestaudio/best',
@@ -64,7 +77,9 @@ async def download_worker():
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
-                    }]
+                    }],
+                    'force_generic_extractor': True,       # handle Shorts
+                    'youtube_include_dash_manifest': False
                 }
             else:
                 opts = {
@@ -73,10 +88,11 @@ async def download_worker():
                     'quiet': True,
                     'no_color': True,
                     'progress_hooks':[progress_hook],
-                    'outtmpl': tmp_file
+                    'outtmpl': tmp_file,
+                    'force_generic_extractor': True if platform=="youtube" else False,
                 }
 
-            # cookies for some sites
+            # Cookies
             if use_cookies:
                 if platform=="instagram" and os.path.exists(INSTAGRAM_COOKIES):
                     opts['cookiefile'] = INSTAGRAM_COOKIES
@@ -84,7 +100,7 @@ async def download_worker():
                     opts['cookiefile'] = TWITTER_COOKIES
                 elif platform=="facebook" and os.path.exists(FACEBOOK_COOKIES):
                     opts['cookiefile'] = FACEBOOK_COOKIES
-                elif platform=="youtube" and os.path.exists(YOUTUBE_COOKIES):   # ✅ NEW
+                elif platform=="youtube" and os.path.exists(YOUTUBE_COOKIES):
                     opts['cookiefile'] = YOUTUBE_COOKIES
 
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -92,7 +108,7 @@ async def download_worker():
                 FILE_PATHS[user_id] = ydl.prepare_filename(info)
                 return info
 
-        # Try download: first without cookies, then with cookies if fail
+        # Try download: without cookies first, then with cookies
         try:
             await asyncio.to_thread(download_video, False, audio_only)
         except Exception:
@@ -104,7 +120,7 @@ async def download_worker():
 
         download_queue.task_done()
 
-# ===== Startup Worker =====
+# ===== STARTUP =====
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(download_worker())
@@ -120,7 +136,7 @@ async def download_endpoint(
     url: str = Form(...), 
     platform: str = Form(...), 
     user_id: int = Form(...),
-    audio_only: bool = Form(False)   # ✅ new
+    audio_only: bool = Form(False)
 ):
     # Instagram rate limit
     if platform=="instagram":
@@ -173,11 +189,7 @@ async def serve_file(filename: str):
     path = f"{os.getcwd()}/{filename}"
     if os.path.exists(path):
         ext = os.path.splitext(filename)[1].lower()
-        # ✅ Different media type for mp3 vs video
-        if ext == ".mp3":
-            media_type = "audio/mpeg"
-        else:
-            media_type = "video/mp4"
+        media_type = "audio/mpeg" if ext==".mp3" else "video/mp4"
         task = BackgroundTask(delete_file_after_send, path)
         return FileResponse(path, media_type=media_type, filename=filename, background=task)
     return {"error":"File not found"}
