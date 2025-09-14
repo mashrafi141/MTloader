@@ -34,7 +34,7 @@ insta_usage = {}
 # ===== DOWNLOAD WORKER =====
 async def download_worker():
     while True:
-        url, platform, user_id = await download_queue.get()
+        url, platform, user_id, audio_only = await download_queue.get()
         tmp_file = f"{os.getcwd()}/video_{user_id}.%(ext)s"
         ERRORS[user_id] = None
         PROGRESS[user_id] = 0
@@ -49,15 +49,33 @@ async def download_worker():
             elif d['status'] == 'finished':
                 PROGRESS[user_id] = 100
 
-        def download_video(use_cookies=False):
-            opts = {
-                'format': 'bestvideo+bestaudio/best' if FFMPEG_EXISTS else 'best',
-                'noplaylist': True,
-                'quiet': True,
-                'no_color': True,
-                'progress_hooks':[progress_hook],
-                'outtmpl': tmp_file
-            }
+        def download_video(use_cookies=False, audio_only=False):
+            # ✅ if audio_only = True -> mp3 extract
+            if audio_only and platform == "youtube":
+                opts = {
+                    'format': 'bestaudio/best',
+                    'noplaylist': True,
+                    'quiet': True,
+                    'no_color': True,
+                    'progress_hooks':[progress_hook],
+                    'outtmpl': tmp_file,
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }]
+                }
+            else:
+                opts = {
+                    'format': 'bestvideo+bestaudio/best' if FFMPEG_EXISTS else 'best',
+                    'noplaylist': True,
+                    'quiet': True,
+                    'no_color': True,
+                    'progress_hooks':[progress_hook],
+                    'outtmpl': tmp_file
+                }
+
+            # cookies for some sites
             if use_cookies:
                 if platform=="instagram" and os.path.exists(INSTAGRAM_COOKIES):
                     opts['cookiefile'] = INSTAGRAM_COOKIES
@@ -65,6 +83,7 @@ async def download_worker():
                     opts['cookiefile'] = TWITTER_COOKIES
                 elif platform=="facebook" and os.path.exists(FACEBOOK_COOKIES):
                     opts['cookiefile'] = FACEBOOK_COOKIES
+
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 FILE_PATHS[user_id] = ydl.prepare_filename(info)
@@ -72,11 +91,11 @@ async def download_worker():
 
         # Try download: first without cookies, then with cookies if fail
         try:
-            await asyncio.to_thread(download_video, False)
-        except Exception as e1:
+            await asyncio.to_thread(download_video, False, audio_only)
+        except Exception:
             try:
-                await asyncio.to_thread(download_video, True)
-            except Exception as e2:
+                await asyncio.to_thread(download_video, True, audio_only)
+            except Exception:
                 ERRORS[user_id] = "Wrong platform or video not found."
                 PROGRESS[user_id] = 0
 
@@ -94,7 +113,12 @@ async def home():
 
 # ===== DOWNLOAD ENDPOINT =====
 @app.post("/download/")
-async def download_endpoint(url: str = Form(...), platform: str = Form(...), user_id: int = Form(...)):
+async def download_endpoint(
+    url: str = Form(...), 
+    platform: str = Form(...), 
+    user_id: int = Form(...),
+    audio_only: bool = Form(False)   # ✅ new
+):
     # Instagram rate limit
     if platform=="instagram":
         today = datetime.utcnow().date()
@@ -108,7 +132,7 @@ async def download_endpoint(url: str = Form(...), platform: str = Form(...), use
             return JSONResponse({"message":f"⏳ Wait {wait_time} minutes before next download."})
 
     # Put in queue
-    await download_queue.put((url, platform, user_id))
+    await download_queue.put((url, platform, user_id, audio_only))
 
     # Wait until file ready or error
     timeout = 300
