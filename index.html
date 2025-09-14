@@ -33,8 +33,18 @@ footer span{color:#ff4757;font-weight:600;}
 <input type="text" id="videoUrl" placeholder="Enter video URL..." required>
 <select id="platform">
 <option value="twitter">X/Twitter</option>
-<option value="facebook">Facebook/Instagram</option>
+<option value="facebook">Facebook</option>
+<option value="instagram">Instagram</option>
+<option value="youtube">YouTube</option>
 </select>
+
+<!-- ✅ YouTube audio option -->
+<div id="yt-options" style="display:none; margin-bottom:15px; text-align:left;">
+  <label style="font-size:14px;">
+    <input type="checkbox" id="audioOnly"> Download Audio Only (MP3)
+  </label>
+</div>
+
 <button id="downloadBtn">Download</button>
 <div class="progress-container"><div id="progress-bar" class="progress-bar"></div></div>
 <div id="status"></div>
@@ -45,10 +55,18 @@ footer span{color:#ff4757;font-weight:600;}
 const downloadBtn = document.getElementById("downloadBtn");
 const statusDiv = document.getElementById("status");
 const progressBar = document.getElementById("progress-bar");
+const platformSelect = document.getElementById("platform");
+const ytOptions = document.getElementById("yt-options");
+
+// ✅ YouTube select করলে checkbox দেখাবে
+platformSelect.addEventListener("change", ()=>{
+    ytOptions.style.display = (platformSelect.value === "youtube") ? "block" : "none";
+});
 
 downloadBtn.addEventListener("click", async ()=>{
     const url=document.getElementById("videoUrl").value.trim();
     const platform=document.getElementById("platform").value;
+    const audioOnly=document.getElementById("audioOnly")?.checked || false;
     const user_id=Date.now();
 
     if(!url){statusDiv.textContent="❌ Please enter a video URL"; return;}
@@ -60,6 +78,7 @@ downloadBtn.addEventListener("click", async ()=>{
     formData.append("url",url);
     formData.append("platform",platform);
     formData.append("user_id",user_id);
+    formData.append("audio_only", audioOnly);
 
     try{
         const resp=await fetch("/download/",{method:"POST",body:formData});
