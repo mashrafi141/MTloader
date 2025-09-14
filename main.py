@@ -1,26 +1,23 @@
-import re
-import os
-import asyncio
-import shutil
-from urllib.parse import urlparse, urlunparse
-
-import yt_dlp
 from fastapi import FastAPI, Form
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask
+import asyncio
+import os
+import yt_dlp
 from datetime import datetime, timedelta
 import uvicorn
+import re
+import shutil
 
 app = FastAPI()
 
 # ===== COOKIES =====
 INSTAGRAM_COOKIES = "insta_cookies.txt"
-TWITTER_COOKIES   = "twitter_cookies.txt"
-FACEBOOK_COOKIES  = "facebook_cookies.txt"
-YOUTUBE_COOKIES   = "youtube_cookies.txt"
+TWITTER_COOKIES = "twitter_cookies.txt"
+FACEBOOK_COOKIES = "facebook_cookies.txt"
 
 # ===== FFMPEG CHECK =====
-FFMPEG_PATH = shutil.which("ffmpeg")
+FFMPEG_PATH = shutil.which("ffmpeg")  # Check system path
 FFMPEG_EXISTS = FFMPEG_PATH is not None
 if FFMPEG_EXISTS:
     print("✅ ffmpeg detected")
@@ -29,21 +26,15 @@ else:
 
 # ===== STATE =====
 download_queue = asyncio.Queue()
-PROGRESS = {}
-FILE_PATHS = {}
-ERRORS = {}
+PROGRESS = {}      # user_id -> percent
+FILE_PATHS = {}    # user_id -> file path
+ERRORS = {}        # user_id -> error message
 insta_usage = {}
-
-# ===== UTILITY: Clean YouTube URL =====
-def clean_youtube_url(url: str) -> str:
-    parsed = urlparse(url)
-    # keep only scheme + netloc + path (strip query/params)
-    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
 
 # ===== DOWNLOAD WORKER =====
 async def download_worker():
     while True:
-        url, platform, user_id, audio_only = await download_queue.get()
+        url, platform, user_id = await download_queue.get()
         tmp_file = f"{os.getcwd()}/video_{user_id}.%(ext)s"
         ERRORS[user_id] = None
         PROGRESS[user_id] = 0
@@ -58,41 +49,15 @@ async def download_worker():
             elif d['status'] == 'finished':
                 PROGRESS[user_id] = 100
 
-        def download_video(use_cookies=False, audio_only=False):
-            nonlocal url
-            # Clean YouTube URL
-            if platform == "youtube":
-                url = clean_youtube_url(url)
-
-            # ✅ Audio only
-            if audio_only and platform == "youtube":
-                opts = {
-                    'format': 'bestaudio/best',
-                    'noplaylist': True,
-                    'quiet': True,
-                    'no_color': True,
-                    'progress_hooks':[progress_hook],
-                    'outtmpl': tmp_file,
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                    'force_generic_extractor': True,       # handle Shorts
-                    'youtube_include_dash_manifest': False
-                }
-            else:
-                opts = {
-                    'format': 'bestvideo+bestaudio/best' if FFMPEG_EXISTS else 'best',
-                    'noplaylist': True,
-                    'quiet': True,
-                    'no_color': True,
-                    'progress_hooks':[progress_hook],
-                    'outtmpl': tmp_file,
-                    'force_generic_extractor': True if platform=="youtube" else False,
-                }
-
-            # Cookies
+        def download_video(use_cookies=False):
+            opts = {
+                'format': 'bestvideo+bestaudio/best' if FFMPEG_EXISTS else 'best',
+                'noplaylist': True,
+                'quiet': True,
+                'no_color': True,
+                'progress_hooks':[progress_hook],
+                'outtmpl': tmp_file
+            }
             if use_cookies:
                 if platform=="instagram" and os.path.exists(INSTAGRAM_COOKIES):
                     opts['cookiefile'] = INSTAGRAM_COOKIES
@@ -100,27 +65,24 @@ async def download_worker():
                     opts['cookiefile'] = TWITTER_COOKIES
                 elif platform=="facebook" and os.path.exists(FACEBOOK_COOKIES):
                     opts['cookiefile'] = FACEBOOK_COOKIES
-                elif platform=="youtube" and os.path.exists(YOUTUBE_COOKIES):
-                    opts['cookiefile'] = YOUTUBE_COOKIES
-
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 FILE_PATHS[user_id] = ydl.prepare_filename(info)
                 return info
 
-        # Try download: without cookies first, then with cookies
+        # Try download: first without cookies, then with cookies if fail
         try:
-            await asyncio.to_thread(download_video, False, audio_only)
-        except Exception:
+            await asyncio.to_thread(download_video, False)
+        except Exception as e1:
             try:
-                await asyncio.to_thread(download_video, True, audio_only)
-            except Exception:
+                await asyncio.to_thread(download_video, True)
+            except Exception as e2:
                 ERRORS[user_id] = "Wrong platform or video not found."
                 PROGRESS[user_id] = 0
 
         download_queue.task_done()
 
-# ===== STARTUP =====
+# ===== Startup Worker =====
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(download_worker())
@@ -132,12 +94,7 @@ async def home():
 
 # ===== DOWNLOAD ENDPOINT =====
 @app.post("/download/")
-async def download_endpoint(
-    url: str = Form(...), 
-    platform: str = Form(...), 
-    user_id: int = Form(...),
-    audio_only: bool = Form(False)
-):
+async def download_endpoint(url: str = Form(...), platform: str = Form(...), user_id: int = Form(...)):
     # Instagram rate limit
     if platform=="instagram":
         today = datetime.utcnow().date()
@@ -151,7 +108,7 @@ async def download_endpoint(
             return JSONResponse({"message":f"⏳ Wait {wait_time} minutes before next download."})
 
     # Put in queue
-    await download_queue.put((url, platform, user_id, audio_only))
+    await download_queue.put((url, platform, user_id))
 
     # Wait until file ready or error
     timeout = 300
@@ -188,10 +145,8 @@ async def progress_endpoint(user_id: int):
 async def serve_file(filename: str):
     path = f"{os.getcwd()}/{filename}"
     if os.path.exists(path):
-        ext = os.path.splitext(filename)[1].lower()
-        media_type = "audio/mpeg" if ext==".mp3" else "video/mp4"
         task = BackgroundTask(delete_file_after_send, path)
-        return FileResponse(path, media_type=media_type, filename=filename, background=task)
+        return FileResponse(path, media_type="video/mp4", filename=filename, background=task)
     return {"error":"File not found"}
 
 async def delete_file_after_send(path):
