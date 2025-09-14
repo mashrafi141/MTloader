@@ -15,22 +15,11 @@ nav .logo{font-size:22px;font-weight:600;color:#ff4757;letter-spacing:1px;}
 .container p{margin-bottom:25px;font-size:16px;color:#ddd;}
 .download-box{background:rgba(255,255,255,0.1);padding:25px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.4);width:100%;max-width:500px;}
 .download-box input, .download-box select{width:100%;padding:12px;border-radius:8px;border:none;outline:none;font-size:16px;margin-bottom:15px;}
-.download-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;}
-.download-box button{flex:1;padding:12px;border:none;border-radius:8px;background:#ff4757;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:0.3s;}
+.download-box button{width:100%;padding:12px;border:none;border-radius:8px;background:#ff4757;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:0.3s;}
 .download-box button:hover{background:#e84118;}
-/* Custom Toggle Switch */
-.switch{position:relative;display:inline-block;width:55px;height:28px;}
-.switch input{opacity:0;width:0;height:0;}
-.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;transition:.4s;border-radius:28px;}
-.slider:before{position:absolute;content:"";height:20px;width:20px;left:4px;bottom:4px;background:white;transition:.4s;border-radius:50%;}
-input:checked + .slider{background:#2ed573;}
-input:checked + .slider:before{transform:translateX(26px);}
-.toggle-label{font-size:14px;margin-left:8px;cursor:pointer;}
-#status{margin-top:10px;font-weight:600;font-size:15px;}
-#status.error{color:#ff6b81;}
-#status.success{color:#2ed573;}
-.progress-container{width:100%;background:rgba(255,255,255,0.2);height:20px;border-radius:10px;margin-top:15px;}
-.progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#ff4757,#ff6b81);border-radius:10px;transition:width 0.4s ease;}
+#status{margin-top:10px;font-weight:600;}
+.progress-container{width:100%;background:rgba(255,255,255,0.2);height:20px;border-radius:10px;margin-top:10px;}
+.progress-bar{height:100%;width:0%;background:#ff4757;border-radius:10px;transition:width 0.3s;}
 footer{background:#111;text-align:center;padding:15px 10px;margin-top:auto;font-size:14px;color:#aaa;}
 footer span{color:#ff4757;font-weight:600;}
 </style>
@@ -38,126 +27,71 @@ footer span{color:#ff4757;font-weight:600;}
 <body>
 <nav><div class="logo">MTLOADER</div></nav>
 <div class="container">
-  <h1>MT LOADER</h1>
-  <p>Paste any video URL below and download instantly 🚀</p>
-  <div class="download-box">
-    <input type="text" id="videoUrl" placeholder="Enter video URL..." required>
-    <select id="platform">
-      <option value="twitter">X/Twitter</option>
-      <option value="facebook">Facebook/Instagram</option>
-      <option value="youtube">YouTube</option>
-    </select>
-
-    <!-- ✅ YouTube audio option -->
-    <div id="yt-options" style="display:none; margin-top:10px; text-align:left; display:flex; align-items:center;">
-      <label class="switch">
-        <input type="checkbox" id="audioOnly">
-        <span class="slider"></span>
-      </label>
-      <span class="toggle-label">Download Audio Only (MP3)</span>
-    </div>
-
-    <!-- Download button + progress -->
-    <div class="download-actions">
-      <button id="downloadBtn">Download</button>
-    </div>
-
-    <div class="progress-container"><div id="progress-bar" class="progress-bar"></div></div>
-    <div id="status"></div>
-  </div>
+<h1>MT LOADER</h1>
+<p>Paste any video URL below and download instantly 🚀</p>
+<div class="download-box">
+<input type="text" id="videoUrl" placeholder="Enter video URL..." required>
+<select id="platform">
+<option value="twitter">X/Twitter</option>
+<option value="facebook">Facebook/Instagram</option>
+</select>
+<button id="downloadBtn">Download</button>
+<div class="progress-container"><div id="progress-bar" class="progress-bar"></div></div>
+<div id="status"></div>
+</div>
 </div>
 <footer>FROM <span>NOOB</span> | All Rights Reserved © 2025</footer>
 <script>
 const downloadBtn = document.getElementById("downloadBtn");
 const statusDiv = document.getElementById("status");
 const progressBar = document.getElementById("progress-bar");
-const platformSelect = document.getElementById("platform");
-const ytOptions = document.getElementById("yt-options");
 
-// ✅ YouTube select করলে toggle দেখাবে
-platformSelect.addEventListener("change", () => {
-    ytOptions.style.display = (platformSelect.value === "youtube") ? "flex" : "none";
-});
+downloadBtn.addEventListener("click", async ()=>{
+    const url=document.getElementById("videoUrl").value.trim();
+    const platform=document.getElementById("platform").value;
+    const user_id=Date.now();
 
-downloadBtn.addEventListener("click", async () => {
-    const url = document.getElementById("videoUrl").value.trim();
-    const platform = document.getElementById("platform").value;
-    const audioOnly = document.getElementById("audioOnly")?.checked || false;
-    const user_id = Date.now();
+    if(!url){statusDiv.textContent="❌ Please enter a video URL"; return;}
 
-    if (!url) {
-        statusDiv.textContent = "❌ Please enter a video URL";
-        statusDiv.className = "error";
-        return;
-    }
+    statusDiv.textContent="⏳ Download starting...";
+    progressBar.style.width="0%";
 
-    statusDiv.textContent = "⏳ Download starting...";
-    statusDiv.className = "";
-    progressBar.style.width = "0%";
+    const formData=new FormData();
+    formData.append("url",url);
+    formData.append("platform",platform);
+    formData.append("user_id",user_id);
 
-    const formData = new FormData();
-    formData.append("url", url);
-    formData.append("platform", platform);
-    formData.append("user_id", user_id);
-    formData.append("audio_only", audioOnly);
+    try{
+        const resp=await fetch("/download/",{method:"POST",body:formData});
+        const data=await resp.json();
 
-    try {
-        const resp = await fetch("/download/", { method: "POST", body: formData });
-        const data = await resp.json();
+        if(data.message){statusDiv.textContent=data.message; return;}
 
-        if (data.message) {
-            statusDiv.textContent = data.message;
-            statusDiv.className = "error";
-            return;
-        }
+        let interval=setInterval(async ()=>{
+            const progRes=await fetch(`/progress/${user_id}`);
+            const progData=await progRes.json();
 
-        let interval = setInterval(async () => {
-            const progRes = await fetch(`/progress/${user_id}`);
-            const progData = await progRes.json();
-
-            if (progData.error) {
+            if(progData.error){
                 clearInterval(interval);
-                statusDiv.textContent = `❌ ${progData.error}`;
-                statusDiv.className = "error";
-                progressBar.style.width = "0%";
+                statusDiv.textContent=`❌ ${progData.error}`;
+                progressBar.style.width="0%";
                 return;
             }
 
-            progressBar.style.width = progData.percent + "%";
-            statusDiv.textContent = `⏳ Downloading: ${progData.percent}%`;
+            progressBar.style.width=progData.percent+"%";
+            statusDiv.textContent=`⏳ Downloading: ${progData.percent}%`;
 
-            if (progData.percent >= 100) {
+            if(progData.percent>=100){
                 clearInterval(interval);
-                statusDiv.textContent = "✅ Download ready!";
-                statusDiv.className = "success";
-
-                // ✅ check file extension
-                const fileUrl = data.file_url;
-                if (fileUrl.endsWith(".mp3")) {
-                    statusDiv.innerHTML = `
-                        ✅ Audio Ready!<br>
-                        <audio controls src="${fileUrl}" style="margin-top:10px;width:100%;"></audio>
-                        <br><a href="${fileUrl}" download class="download-link" style="margin-top:10px;display:inline-block;padding:8px 12px;background:#ff4757;border-radius:5px;color:white;text-decoration:none;">⬇️ Download MP3</a>
-                    `;
-                } else {
-                    statusDiv.innerHTML = `
-                        ✅ Video Ready!<br>
-                        <video controls src="${fileUrl}" style="margin-top:10px;width:100%;max-height:280px;"></video>
-                        <br><a href="${fileUrl}" download class="download-link" style="margin-top:10px;display:inline-block;padding:8px 12px;background:#ff4757;border-radius:5px;color:white;text-decoration:none;">⬇️ Download Video</a>
-                    `;
-                }
+                statusDiv.textContent="✅ Download ready!";
+                window.location.href=data.file_url;
             }
-        }, 500);
+        },500);
 
-    } catch (err) {
-        statusDiv.textContent = "❌ Error: " + err;
-        statusDiv.className = "error";
+    }catch(err){
+        statusDiv.textContent="❌ Error: "+err;
     }
 });
 </script>
-
 </body>
 </html>
-
-
-
