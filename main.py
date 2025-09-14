@@ -13,8 +13,10 @@ app = FastAPI()
 
 # ===== COOKIES =====
 INSTAGRAM_COOKIES = "insta_cookies.txt"
-TWITTER_COOKIES = "twitter_cookies.txt"
-FACEBOOK_COOKIES = "facebook_cookies.txt"
+TWITTER_COOKIES   = "twitter_cookies.txt"
+FACEBOOK_COOKIES  = "facebook_cookies.txt"
+YOUTUBE_COOKIES   = "youtube_cookies.txt"   # ✅ NEW
+
 
 # ===== FFMPEG CHECK =====
 FFMPEG_PATH = shutil.which("ffmpeg")  # Check system path
@@ -76,6 +78,7 @@ async def download_worker():
                 }
 
             # cookies for some sites
+            # cookies for some sites
             if use_cookies:
                 if platform=="instagram" and os.path.exists(INSTAGRAM_COOKIES):
                     opts['cookiefile'] = INSTAGRAM_COOKIES
@@ -83,6 +86,9 @@ async def download_worker():
                     opts['cookiefile'] = TWITTER_COOKIES
                 elif platform=="facebook" and os.path.exists(FACEBOOK_COOKIES):
                     opts['cookiefile'] = FACEBOOK_COOKIES
+                elif platform=="youtube" and os.path.exists(YOUTUBE_COOKIES):   # ✅ NEW
+                    opts['cookiefile'] = YOUTUBE_COOKIES
+
 
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
@@ -187,3 +193,4 @@ async def delete_file_after_send(path):
 # ===== RUN =====
 if __name__=="__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
