@@ -17,7 +17,6 @@ TWITTER_COOKIES   = "twitter_cookies.txt"
 FACEBOOK_COOKIES  = "facebook_cookies.txt"
 YOUTUBE_COOKIES   = "youtube_cookies.txt"   # ✅ NEW
 
-
 # ===== FFMPEG CHECK =====
 FFMPEG_PATH = shutil.which("ffmpeg")  # Check system path
 FFMPEG_EXISTS = FFMPEG_PATH is not None
@@ -78,7 +77,6 @@ async def download_worker():
                 }
 
             # cookies for some sites
-            # cookies for some sites
             if use_cookies:
                 if platform=="instagram" and os.path.exists(INSTAGRAM_COOKIES):
                     opts['cookiefile'] = INSTAGRAM_COOKIES
@@ -88,7 +86,6 @@ async def download_worker():
                     opts['cookiefile'] = FACEBOOK_COOKIES
                 elif platform=="youtube" and os.path.exists(YOUTUBE_COOKIES):   # ✅ NEW
                     opts['cookiefile'] = YOUTUBE_COOKIES
-
 
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
@@ -175,8 +172,14 @@ async def progress_endpoint(user_id: int):
 async def serve_file(filename: str):
     path = f"{os.getcwd()}/{filename}"
     if os.path.exists(path):
+        ext = os.path.splitext(filename)[1].lower()
+        # ✅ Different media type for mp3 vs video
+        if ext == ".mp3":
+            media_type = "audio/mpeg"
+        else:
+            media_type = "video/mp4"
         task = BackgroundTask(delete_file_after_send, path)
-        return FileResponse(path, media_type="video/mp4", filename=filename, background=task)
+        return FileResponse(path, media_type=media_type, filename=filename, background=task)
     return {"error":"File not found"}
 
 async def delete_file_after_send(path):
@@ -193,4 +196,3 @@ async def delete_file_after_send(path):
 # ===== RUN =====
 if __name__=="__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
